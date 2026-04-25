@@ -1,0 +1,57 @@
+IOT BRIDGE HEALTH MONITORING — WIRING QUICK REFERENCE
+======================================================
+
+MPU6050 (Vibration + Tilt)
+  VCC  → 3.3V
+  GND  → GND
+  SDA  → A4
+  SCL  → A5
+
+HX711 (Load Cell)
+  VCC  → 5V
+  GND  → GND
+  DT   → D4
+  SCK  → D5
+  Load Cell: Red→E+, Black→E-, White→A-, Green→A+
+
+DHT22 (Temp + Humidity)
+  VCC  → 5V
+  DATA → D7  (+ 10kΩ pullup to 5V)
+  GND  → GND
+
+MQ-2 (Gas Sensor)
+  VCC  → 5V
+  GND  → GND
+  AO   → A1
+  DO   → D3
+
+Water Level Sensor
+  VCC  → 5V
+  GND  → GND
+  AO   → A2
+  DO   → D2
+
+ESP8266 ESP-01 (WiFi)
+  VCC    → 3.3V  [NOT 5V!]
+  GND    → GND
+  CH_PD  → 3.3V
+  TX     → D12 (direct)
+  RX     → D13 via [1kΩ + 2kΩ voltage divider]
+
+LCD 16x2 I2C (Addr: 0x27 or 0x3F)
+  VCC  → 5V
+  GND  → GND
+  SDA  → A4
+  SCL  → A5
+
+LEDs (220Ω series resistor to GND each)
+  Green  (NORMAL)  → D9
+  Yellow (WARNING) → D10
+  Red    (DANGER)  → D11
+
+Buzzer (Active 5V)
+  (+) → D8
+  (-) → GND
+
+POWER: Use 5V 2A regulated supply
+       Add 100µF cap across 5V/GND near ESP8266

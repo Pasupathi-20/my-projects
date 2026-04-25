@@ -1,0 +1,45 @@
+RAIN SENSING WIPER — WIRING QUICK REFERENCE
+===========================================
+Generated for: Arduino Uno R3
+
+RAIN SENSOR MODULE
+------------------
+  Sensor VCC  → Arduino 5V
+  Sensor GND  → Arduino GND
+  Sensor AO   → Arduino A0
+  Sensor DO   → Arduino D2
+
+SERVO MOTOR (SG90)
+------------------
+  Servo Red   → Arduino 5V
+  Servo Brown → Arduino GND
+  Servo Orange→ Arduino D9
+
+LCD 16x2 I2C
+------------
+  LCD VCC → Arduino 5V
+  LCD GND → Arduino GND
+  LCD SDA → Arduino A4
+  LCD SCL → Arduino A5
+  I2C Addr: 0x27 (change to 0x3F if needed)
+
+LED INDICATORS (all with 220Ω series resistor)
+-----------------------------------------------
+  Green  LED (OFF)    → D3 → 220Ω → GND
+  Yellow LED (SLOW)   → D4 → 220Ω → GND
+  Orange LED (MEDIUM) → D5 → 220Ω → GND
+  Red    LED (FAST)   → D6 → 220Ω → GND
+
+BUZZER (Active 5V)
+------------------
+  Buzzer (+) → D8
+  Buzzer (-) → GND
+
+POWER
+-----
+  USB 5V for development
+  9V battery via DC jack for standalone
+  Vin max: 12V
+
+NOTE: Place a 100µF electrolytic capacitor across
+5V and GND near servo to smooth power spikes.
