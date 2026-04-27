@@ -1,0 +1,54 @@
+IOT CIRCUIT BREAKER MONITORING — WIRING QUICK REFERENCE
+=========================================================
+
+ACS712-30A (Current Sensor)
+  VCC  -> 5V
+  GND  -> GND
+  OUT  -> A0
+  [AC line wire passes through ACS712 aperture]
+
+ZMPT101B (Voltage Sensor)
+  VCC  -> 5V
+  GND  -> GND
+  OUT  -> A1
+  [Connected across AC Line and Neutral]
+
+DHT22 (Temperature + Humidity)
+  Pin1 (VCC)  -> 5V
+  Pin2 (DATA) -> D7  (+ 10kΩ pullup to 5V)
+  Pin4 (GND)  -> GND
+
+Relay Module (Breaker Control)
+  VCC  -> 5V
+  GND  -> GND
+  IN   -> D4
+  COM  -> AC supply line
+  NO   -> Load output (power on when relay HIGH)
+
+Manual Buttons (INPUT_PULLUP - no resistor needed)
+  RESET button: D2 <-> GND    (INT0)
+  TRIP  button: D3 <-> GND    (INT1)
+
+ESP8266 ESP-01  [3.3V ONLY]
+  VCC    -> 3.3V
+  GND    -> GND
+  CH_PD  -> 3.3V
+  TX     -> D12 (direct)
+  RX     -> D13 via [1kΩ + 2kΩ] voltage divider
+
+LCD 16x2 I2C (addr 0x27 or 0x3F)
+  VCC -> 5V | GND -> GND | SDA -> A4 | SCL -> A5
+
+LEDs (220Ω series to GND each)
+  Green  (NORMAL/CLOSED) -> D9
+  Yellow (WARNING)       -> D10
+  Red    (TRIPPED)       -> D11
+
+Buzzer (Active 5V)
+  (+) -> D8 | (-) -> GND
+
+POWER: 5V 2A regulated supply
+       100µF cap across 5V/GND near ESP8266
+
+WARNING: AC mains wiring must be done by a qualified person.
+         Use fused terminal blocks and proper insulation.
