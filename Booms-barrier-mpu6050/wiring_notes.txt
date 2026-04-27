@@ -1,0 +1,44 @@
+BOOM BARRIER POSITION DETECTION — WIRING QUICK REFERENCE
+=========================================================
+Platform: NodeMCU ESP8266 (ESP-12E)
+
+MPU6050 GY-521
+  VCC  -> 3.3V (NodeMCU)
+  GND  -> GND
+  SDA  -> D2 (GPIO4)
+  SCL  -> D1 (GPIO5)
+  AD0  -> GND  (I2C addr = 0x68)
+  INT  -> Not connected
+
+LCD 16x2 I2C  (addr 0x27 or 0x3F)
+  VCC  -> 3.3V or 5V
+  GND  -> GND
+  SDA  -> D2  (shared with MPU6050 — same I2C bus)
+  SCL  -> D1  (shared with MPU6050)
+
+LED Indicators (220Ω series resistor to GND)
+  Blue  LED (CLOSED)  -> D5 (GPIO14)
+  Yellow LED (MOVING) -> D6 (GPIO12)
+  Green LED (OPEN)    -> D7 (GPIO13)
+
+Active Buzzer
+  (+) -> D8 (GPIO15)
+  (-) -> GND
+
+POWER
+  USB (development) or 5V adapter to VIN pin
+
+THRESHOLDS (edit in sketch)
+  PITCH_CLOSED_MAX = 10 deg  (arm horizontal)
+  PITCH_OPEN_MIN   = 80 deg  (arm vertical)
+
+I2C ADDRESSES
+  MPU6050 = 0x68
+  LCD     = 0x27 (or 0x3F)
+
+WEB DASHBOARD
+  http://<NodeMCU-IP>/       -> Live HTML dashboard
+  http://<NodeMCU-IP>/data   -> JSON data endpoint
+
+NOTE: Mount MPU6050 flat on barrier arm, X-axis along arm.
+      Keep barrier STILL for first 2s (gyro calibration).

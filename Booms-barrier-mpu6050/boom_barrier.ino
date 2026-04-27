@@ -1,0 +1,586 @@
+/**
+ * ============================================================
+ * Boom Barrier Position Detection Using MPU6050 and NodeMCU
+ * ============================================================
+ * Author      : Pasupathi
+ * Version     : 1.0.0
+ * Board       : NodeMCU ESP8266 (ESP-12E)
+ * Description : Detects boom barrier arm position (CLOSED,
+ *               OPENING, OPEN, CLOSING) using an MPU6050
+ *               accelerometer/gyroscope. Reads pitch angle
+ *               continuously via I2C, applies a threshold-based
+ *               state machine to determine arm position, and
+ *               publishes real-time data to ThingSpeak cloud
+ *               and a local web dashboard.
+ *
+ * Hardware:
+ *   - NodeMCU ESP8266 (ESP-12E)
+ *   - MPU6050 (GY-521) — attached to barrier arm
+ *   - 16x2 I2C LCD Display (optional)
+ *   - Buzzer (optional — beeps on state change)
+ *   - LEDs — Red (closed), Yellow (moving), Green (open)
+ *
+ * Arm Position States:
+ *   CLOSED  -> Pitch near 0° (arm horizontal / down)
+ *   OPENING -> Pitch rising (0° to 90°)
+ *   OPEN    -> Pitch near 90° (arm vertical / up)
+ *   CLOSING -> Pitch falling (90° to 0°)
+ *
+ * Pitch Angle Thresholds (adjustable):
+ *   Arm CLOSED  : pitch < CLOSED_THRESHOLD  (e.g. < 10°)
+ *   Arm OPEN    : pitch > OPEN_THRESHOLD    (e.g. > 75°)
+ *   Between     : OPENING or CLOSING (based on direction)
+ *
+ * Cloud:
+ *   - ThingSpeak (pitch, state, gyro rate)
+ *   - Built-in HTTP web dashboard on NodeMCU IP
+ * ============================================================
+ */
+
+#include <Wire.h>
+#include <MPU6050.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include <LiquidCrystal_I2C.h>
+
+// ─────────────────────────────────────────────
+// PIN CONFIGURATION (NodeMCU GPIO)
+// ─────────────────────────────────────────────
+// I2C (MPU6050 + LCD)
+#define SDA_PIN         D2   // GPIO4
+#define SCL_PIN         D1   // GPIO5
+
+// Indicators
+#define LED_CLOSED_PIN  D5   // Red   — arm closed
+#define LED_MOVING_PIN  D6   // Yellow — arm moving
+#define LED_OPEN_PIN    D7   // Green  — arm fully open
+#define BUZZER_PIN      D8   // Active buzzer
+
+// ─────────────────────────────────────────────
+// POSITION THRESHOLDS (degrees)
+// Calibrate these to your barrier's range
+// ─────────────────────────────────────────────
+#define CLOSED_THRESHOLD   10.0   // Below this = arm fully closed
+#define OPEN_THRESHOLD     75.0   // Above this = arm fully open
+#define MOVEMENT_HYSTERESIS 2.0   // Minimum pitch change to detect movement
+
+// ─────────────────────────────────────────────
+// COMPLEMENTARY FILTER COEFFICIENT
+// Higher alpha = more gyro (faster but drifts)
+// Lower  alpha = more accel (slower but stable)
+// ─────────────────────────────────────────────
+#define ALPHA              0.96
+
+// ─────────────────────────────────────────────
+// TIMING
+// ─────────────────────────────────────────────
+#define SENSOR_READ_INTERVAL    50     // ms — 20Hz sensor loop
+#define CLOUD_UPLOAD_INTERVAL   15000  // ms — ThingSpeak min 15s
+#define DISPLAY_UPDATE_INTERVAL 500    // ms
+#define STATE_CONFIRM_COUNT     5      // Samples before confirming state change
+
+// ─────────────────────────────────────────────
+// WiFi & ThingSpeak Configuration
+// ─────────────────────────────────────────────
+const char* WIFI_SSID   = "YOUR_WIFI_SSID";
+const char* WIFI_PASS   = "YOUR_WIFI_PASSWORD";
+const char* TS_API_KEY  = "YOUR_THINGSPEAK_WRITE_API_KEY";
+const char* TS_HOST     = "api.thingspeak.com";
+
+// ─────────────────────────────────────────────
+// BARRIER ARM POSITION STATES
+// ─────────────────────────────────────────────
+enum BarrierState {
+  STATE_CLOSED,
+  STATE_OPENING,
+  STATE_OPEN,
+  STATE_CLOSING,
+  STATE_UNKNOWN
+};
+
+// ─────────────────────────────────────────────
+// SENSOR DATA STRUCTURE
+// ─────────────────────────────────────────────
+struct BarrierData {
+  float         pitch;          // degrees — filtered pitch angle
+  float         pitchRate;      // deg/s — from gyroscope
+  float         roll;           // degrees — side tilt
+  BarrierState  state;          // current arm state
+  BarrierState  prevState;      // previous arm state
+  unsigned long lastStateChange; // millis() of last state change
+  unsigned long openCount;      // total open cycles
+};
+
+// ─────────────────────────────────────────────
+// OBJECTS
+// ─────────────────────────────────────────────
+MPU6050            mpu;
+LiquidCrystal_I2C  lcd(0x27, 16, 2);
+ESP8266WebServer   webServer(80);
+WiFiClient         wifiClient;
+
+// ─────────────────────────────────────────────
+// GLOBAL STATE
+// ─────────────────────────────────────────────
+BarrierData       barrierData;
+float             filteredPitch    = 0.0;
+float             filteredRoll     = 0.0;
+unsigned long     lastSensorRead   = 0;
+unsigned long     lastCloudUpload  = 0;
+unsigned long     lastDisplayUpdate= 0;
+unsigned long     lastLoopTime     = 0;
+int               stateConfirmCount= 0;
+BarrierState      pendingState     = STATE_UNKNOWN;
+
+// Gyro calibration offsets (measured at startup)
+float gyroXoffset = 0, gyroYoffset = 0, gyroZoffset = 0;
+
+// ─────────────────────────────────────────────
+// FUNCTION DECLARATIONS
+// ─────────────────────────────────────────────
+void     calibrateGyro();
+void     readMPU6050(BarrierData &data, float dt);
+BarrierState detectState(float pitch, float pitchRate, BarrierState current);
+void     updateStateWithConfirmation(BarrierState newState, BarrierData &data);
+void     updateLEDs(BarrierState state);
+void     updateLCD(BarrierData &data);
+void     uploadToThingSpeak(BarrierData &data);
+void     setupWebServer();
+void     handleWebRoot();
+void     serialPrintData(BarrierData &data);
+String   stateToString(BarrierState s);
+String   stateToEmoji(BarrierState s);
+
+// ─────────────────────────────────────────────
+// SETUP
+// ─────────────────────────────────────────────
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+
+  Serial.println();
+  Serial.println(F("================================================="));
+  Serial.println(F("  Boom Barrier Position Detection  v1.0.0       "));
+  Serial.println(F("  NodeMCU ESP8266 + MPU6050                     "));
+  Serial.println(F("================================================="));
+
+  // Configure indicator pins
+  pinMode(LED_CLOSED_PIN, OUTPUT);
+  pinMode(LED_MOVING_PIN, OUTPUT);
+  pinMode(LED_OPEN_PIN,   OUTPUT);
+  pinMode(BUZZER_PIN,     OUTPUT);
+
+  // LED self test
+  digitalWrite(LED_CLOSED_PIN, HIGH); delay(200);
+  digitalWrite(LED_MOVING_PIN, HIGH); delay(200);
+  digitalWrite(LED_OPEN_PIN,   HIGH); delay(200);
+  digitalWrite(LED_CLOSED_PIN, LOW);
+  digitalWrite(LED_MOVING_PIN, LOW);
+  digitalWrite(LED_OPEN_PIN,   LOW);
+  tone(BUZZER_PIN, 1000, 150); delay(200);
+  noTone(BUZZER_PIN);
+
+  // I2C — NodeMCU uses D2/D1 for SDA/SCL
+  Wire.begin(SDA_PIN, SCL_PIN);
+
+  // LCD
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0); lcd.print(F("Boom Barrier    "));
+  lcd.setCursor(0, 1); lcd.print(F("Initializing... "));
+
+  // MPU6050
+  mpu.initialize();
+  if (mpu.testConnection()) {
+    Serial.println(F("MPU6050: Connected OK"));
+  } else {
+    Serial.println(F("MPU6050: CONNECTION FAILED -- check wiring"));
+    lcd.setCursor(0, 1); lcd.print(F("MPU6050 ERROR!  "));
+    while (true) { delay(1000); } // halt
+  }
+
+  // Configure MPU6050 ranges
+  mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_2);   // ±2g
+  mpu.setFullScaleGyroRange(MPU6050_GYRO_FS_250);   // ±250°/s
+  mpu.setDLPFMode(MPU6050_DLPF_BW_20);              // 20Hz low-pass filter
+
+  // Gyroscope calibration
+  Serial.println(F("Calibrating gyro — keep sensor STILL for 3 seconds..."));
+  lcd.setCursor(0, 1); lcd.print(F("Calibrating...  "));
+  calibrateGyro();
+  Serial.println(F("Calibration complete."));
+
+  // Initialize barrier state
+  barrierData.state          = STATE_UNKNOWN;
+  barrierData.prevState      = STATE_UNKNOWN;
+  barrierData.lastStateChange = millis();
+  barrierData.openCount      = 0;
+  filteredPitch              = 0.0;
+  filteredRoll               = 0.0;
+
+  // Connect WiFi
+  Serial.print(F("Connecting to WiFi: "));
+  Serial.println(WIFI_SSID);
+  lcd.setCursor(0, 1); lcd.print(F("WiFi Connecting "));
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+  int wifiAttempts = 0;
+  while (WiFi.status() != WL_CONNECTED && wifiAttempts < 20) {
+    delay(500);
+    Serial.print(".");
+    wifiAttempts++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println();
+    Serial.print(F("WiFi Connected! IP: "));
+    Serial.println(WiFi.localIP());
+    lcd.setCursor(0, 1); lcd.print(F("WiFi Connected! "));
+  } else {
+    Serial.println(F("\nWiFi FAILED -- offline mode"));
+    lcd.setCursor(0, 1); lcd.print(F("WiFi Failed     "));
+  }
+
+  // Setup web server
+  setupWebServer();
+  webServer.begin();
+  Serial.println(F("Web server started."));
+
+  lastLoopTime = millis();
+  lcd.clear();
+  Serial.println(F("System ready. Monitoring barrier..."));
+}
+
+// ─────────────────────────────────────────────
+// MAIN LOOP
+// ─────────────────────────────────────────────
+void loop() {
+  webServer.handleClient();  // Handle web requests (non-blocking)
+
+  unsigned long now = millis();
+  float dt = (now - lastLoopTime) / 1000.0;  // seconds since last loop
+  lastLoopTime = now;
+
+  // ── Read MPU6050 sensor ───────────────────
+  if (now - lastSensorRead >= SENSOR_READ_INTERVAL) {
+    lastSensorRead = now;
+
+    readMPU6050(barrierData, dt);
+
+    // Detect new state
+    BarrierState detected = detectState(
+      barrierData.pitch,
+      barrierData.pitchRate,
+      barrierData.state
+    );
+
+    // Confirm state change
+    updateStateWithConfirmation(detected, barrierData);
+    updateLEDs(barrierData.state);
+    serialPrintData(barrierData);
+  }
+
+  // ── Update LCD ─────────────────────────────
+  if (now - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL) {
+    lastDisplayUpdate = now;
+    updateLCD(barrierData);
+  }
+
+  // ── Cloud upload ───────────────────────────
+  if (WiFi.status() == WL_CONNECTED &&
+      now - lastCloudUpload >= CLOUD_UPLOAD_INTERVAL) {
+    lastCloudUpload = now;
+    uploadToThingSpeak(barrierData);
+  }
+}
+
+// ─────────────────────────────────────────────
+// CALIBRATE GYROSCOPE
+// Average 500 samples at rest to find offsets
+// ─────────────────────────────────────────────
+void calibrateGyro() {
+  int16_t gx, gy, gz;
+  long sumX = 0, sumY = 0, sumZ = 0;
+  const int samples = 500;
+
+  for (int i = 0; i < samples; i++) {
+    mpu.getRotation(&gx, &gy, &gz);
+    sumX += gx;
+    sumY += gy;
+    sumZ += gz;
+    delay(3);
+  }
+
+  gyroXoffset = sumX / (float)samples;
+  gyroYoffset = sumY / (float)samples;
+  gyroZoffset = sumZ / (float)samples;
+
+  Serial.print(F("Gyro offsets -> X:")); Serial.print(gyroXoffset);
+  Serial.print(F(" Y:"));                Serial.print(gyroYoffset);
+  Serial.print(F(" Z:"));                Serial.println(gyroZoffset);
+}
+
+// ─────────────────────────────────────────────
+// READ MPU6050 + COMPLEMENTARY FILTER
+// Fuses accelerometer angle + gyroscope rate
+// for smooth, drift-free pitch/roll estimation
+// ─────────────────────────────────────────────
+void readMPU6050(BarrierData &data, float dt) {
+  int16_t ax, ay, az, gx, gy, gz;
+  mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+
+  // Convert raw to physical units
+  // Accel: LSB/g = 16384 for ±2g
+  float axG = ax / 16384.0;
+  float ayG = ay / 16384.0;
+  float azG = az / 16384.0;
+
+  // Gyro: LSB/(deg/s) = 131 for ±250°/s
+  float gyroX = (gx - gyroXoffset) / 131.0;  // deg/s
+  float gyroY = (gy - gyroYoffset) / 131.0;
+
+  // Accelerometer-based angles
+  float accelPitch = atan2(ayG, sqrt(axG * axG + azG * azG)) * 180.0 / PI;
+  float accelRoll  = atan2(axG, sqrt(ayG * ayG + azG * azG)) * 180.0 / PI;
+
+  // Complementary filter: trust gyro short-term, accel long-term
+  filteredPitch = ALPHA * (filteredPitch + gyroY * dt) + (1.0 - ALPHA) * accelPitch;
+  filteredRoll  = ALPHA * (filteredRoll  + gyroX * dt) + (1.0 - ALPHA) * accelRoll;
+
+  data.pitch     = filteredPitch;
+  data.roll      = filteredRoll;
+  data.pitchRate = gyroY;  // degrees per second
+}
+
+// ─────────────────────────────────────────────
+// DETECT BARRIER STATE FROM PITCH
+// Uses pitch angle + pitch rate (velocity) for
+// direction detection (OPENING vs CLOSING)
+// ─────────────────────────────────────────────
+BarrierState detectState(float pitch, float pitchRate, BarrierState current) {
+  if (pitch <= CLOSED_THRESHOLD) {
+    return STATE_CLOSED;
+  }
+  else if (pitch >= OPEN_THRESHOLD) {
+    return STATE_OPEN;
+  }
+  else {
+    // In between — determine direction from gyro rate
+    if (pitchRate > MOVEMENT_HYSTERESIS) {
+      return STATE_OPENING;
+    } else if (pitchRate < -MOVEMENT_HYSTERESIS) {
+      return STATE_CLOSING;
+    } else {
+      // Stationary in mid-position — keep current state
+      return current;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// STATE MACHINE WITH CONFIRMATION
+// Requires STATE_CONFIRM_COUNT consecutive
+// readings before committing to a new state
+// ─────────────────────────────────────────────
+void updateStateWithConfirmation(BarrierState newState, BarrierData &data) {
+  if (newState == pendingState) {
+    stateConfirmCount++;
+  } else {
+    pendingState     = newState;
+    stateConfirmCount = 1;
+  }
+
+  if (stateConfirmCount >= STATE_CONFIRM_COUNT && newState != data.state) {
+    data.prevState      = data.state;
+    data.state          = newState;
+    data.lastStateChange = millis();
+    stateConfirmCount   = 0;
+
+    // Count open cycles
+    if (newState == STATE_OPEN) {
+      data.openCount++;
+    }
+
+    // Beep on state change
+    tone(BUZZER_PIN, 1200, 80);
+
+    Serial.print(F(">>> STATE CHANGE: "));
+    Serial.print(stateToString(data.prevState));
+    Serial.print(F(" -> "));
+    Serial.println(stateToString(data.state));
+  }
+}
+
+// ─────────────────────────────────────────────
+// UPDATE LED INDICATORS
+// ─────────────────────────────────────────────
+void updateLEDs(BarrierState state) {
+  digitalWrite(LED_CLOSED_PIN, state == STATE_CLOSED  ? HIGH : LOW);
+  digitalWrite(LED_MOVING_PIN, (state == STATE_OPENING || state == STATE_CLOSING) ? HIGH : LOW);
+  digitalWrite(LED_OPEN_PIN,   state == STATE_OPEN    ? HIGH : LOW);
+}
+
+// ─────────────────────────────────────────────
+// UPDATE LCD
+// ─────────────────────────────────────────────
+void updateLCD(BarrierData &data) {
+  lcd.setCursor(0, 0);
+  lcd.print(F("Pitch:          "));
+  lcd.setCursor(7, 0);
+  lcd.print(data.pitch, 1);
+  lcd.print(F(" deg"));
+
+  lcd.setCursor(0, 1);
+  lcd.print(F("State:          "));
+  lcd.setCursor(7, 1);
+  lcd.print(stateToString(data.state));
+  lcd.print(F("      "));
+}
+
+// ─────────────────────────────────────────────
+// UPLOAD TO THINGSPEAK
+// field1 = pitch angle
+// field2 = pitch rate (deg/s)
+// field3 = roll angle
+// field4 = barrier state (0=closed,1=opening,2=open,3=closing)
+// field5 = total open cycles
+// ─────────────────────────────────────────────
+void uploadToThingSpeak(BarrierData &data) {
+  Serial.println(F("Uploading to ThingSpeak..."));
+
+  if (wifiClient.connect(TS_HOST, 80)) {
+    String payload = "field1=" + String(data.pitch, 2)
+      + "&field2=" + String(data.pitchRate, 2)
+      + "&field3=" + String(data.roll, 2)
+      + "&field4=" + String((int)data.state)
+      + "&field5=" + String(data.openCount);
+
+    wifiClient.print("POST /update HTTP/1.1\r\n");
+    wifiClient.print("Host: "); wifiClient.print(TS_HOST); wifiClient.print("\r\n");
+    wifiClient.print("Connection: close\r\n");
+    wifiClient.print("X-THINGSPEAKAPIKEY: "); wifiClient.print(TS_API_KEY); wifiClient.print("\r\n");
+    wifiClient.print("Content-Type: application/x-www-form-urlencoded\r\n");
+    wifiClient.print("Content-Length: "); wifiClient.print(payload.length()); wifiClient.print("\r\n\r\n");
+    wifiClient.print(payload);
+
+    delay(500);
+    wifiClient.stop();
+    Serial.println(F("ThingSpeak upload done."));
+  } else {
+    Serial.println(F("ThingSpeak connect failed."));
+  }
+}
+
+// ─────────────────────────────────────────────
+// WEB SERVER — LOCAL DASHBOARD
+// Access via http://<NodeMCU_IP>/
+// ─────────────────────────────────────────────
+void setupWebServer() {
+  webServer.on("/", handleWebRoot);
+  webServer.on("/data", []() {
+    // JSON endpoint for live data polling
+    String json = "{";
+    json += "\"pitch\":"    + String(barrierData.pitch, 2) + ",";
+    json += "\"pitchRate\":" + String(barrierData.pitchRate, 2) + ",";
+    json += "\"roll\":"     + String(barrierData.roll, 2) + ",";
+    json += "\"state\":\""  + stateToString(barrierData.state) + "\",";
+    json += "\"openCount\":" + String(barrierData.openCount);
+    json += "}";
+    webServer.send(200, "application/json", json);
+  });
+}
+
+void handleWebRoot() {
+  String stateColor;
+  switch (barrierData.state) {
+    case STATE_CLOSED:  stateColor = "#e74c3c"; break;
+    case STATE_OPEN:    stateColor = "#2ecc71"; break;
+    case STATE_OPENING:
+    case STATE_CLOSING: stateColor = "#f39c12"; break;
+    default:            stateColor = "#95a5a6"; break;
+  }
+
+  String html = "<!DOCTYPE html><html><head>";
+  html += "<meta charset='UTF-8'>";
+  html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
+  html += "<meta http-equiv='refresh' content='2'>";
+  html += "<title>Boom Barrier Monitor</title>";
+  html += "<style>";
+  html += "body{font-family:Arial,sans-serif;background:#1a1a2e;color:#eee;margin:0;padding:20px;text-align:center;}";
+  html += "h1{color:#e94560;font-size:1.8em;margin-bottom:5px;}";
+  html += ".subtitle{color:#aaa;font-size:0.9em;margin-bottom:30px;}";
+  html += ".card{background:#16213e;border-radius:12px;padding:20px;margin:10px auto;max-width:420px;box-shadow:0 4px 15px rgba(0,0,0,0.4);}";
+  html += ".state-badge{display:inline-block;padding:12px 30px;border-radius:30px;font-size:1.4em;font-weight:bold;color:#fff;background:" + stateColor + ";margin:10px 0;}";
+  html += ".metric{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #0f3460;}";
+  html += ".metric:last-child{border-bottom:none;}";
+  html += ".metric-label{color:#aaa;}";
+  html += ".metric-value{color:#e94560;font-weight:bold;font-size:1.1em;}";
+  html += ".gauge-bar{background:#0f3460;border-radius:10px;height:18px;margin:5px 0;}";
+  html += ".gauge-fill{height:18px;border-radius:10px;background:linear-gradient(to right,#e94560,#f39c12,#2ecc71);transition:width 0.3s;}";
+  html += "footer{margin-top:20px;color:#555;font-size:0.8em;}";
+  html += "</style></head><body>";
+
+  html += "<h1>Boom Barrier Monitor</h1>";
+  html += "<p class='subtitle'>NodeMCU ESP8266 + MPU6050 | Pasupathi</p>";
+
+  html += "<div class='card'>";
+  html += "<p style='color:#aaa;margin:0 0 5px;'>Current Position</p>";
+  html += "<div class='state-badge'>" + stateToString(barrierData.state) + "</div>";
+  html += "</div>";
+
+  // Pitch gauge
+  float pct = constrain(barrierData.pitch / 90.0 * 100.0, 0, 100);
+  html += "<div class='card'>";
+  html += "<p style='color:#aaa;margin:0 0 5px;'>Pitch Angle</p>";
+  html += "<div style='font-size:2em;font-weight:bold;color:#e94560;'>" + String(barrierData.pitch, 1) + " &deg;</div>";
+  html += "<div class='gauge-bar'><div class='gauge-fill' style='width:" + String(pct, 0) + "%'></div></div>";
+  html += "<p style='color:#555;font-size:0.8em;margin:2px 0;'>0° (Closed) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 90° (Open)</p>";
+  html += "</div>";
+
+  // Metrics
+  html += "<div class='card'>";
+  html += "<div class='metric'><span class='metric-label'>Pitch Rate</span><span class='metric-value'>" + String(barrierData.pitchRate, 1) + " &deg;/s</span></div>";
+  html += "<div class='metric'><span class='metric-label'>Roll Angle</span><span class='metric-value'>" + String(barrierData.roll, 1) + " &deg;</span></div>";
+  html += "<div class='metric'><span class='metric-label'>Total Open Cycles</span><span class='metric-value'>" + String(barrierData.openCount) + "</span></div>";
+  html += "<div class='metric'><span class='metric-label'>IP Address</span><span class='metric-value'>" + WiFi.localIP().toString() + "</span></div>";
+  html += "</div>";
+
+  html += "<footer>Auto-refreshes every 2s &nbsp;|&nbsp; <a href='/data' style='color:#e94560;'>JSON API</a></footer>";
+  html += "</body></html>";
+
+  webServer.send(200, "text/html", html);
+}
+
+// ─────────────────────────────────────────────
+// SERIAL DEBUG OUTPUT
+// ─────────────────────────────────────────────
+void serialPrintData(BarrierData &data) {
+  Serial.print(F("Pitch: ")); Serial.print(data.pitch, 1);
+  Serial.print(F("°  Rate: ")); Serial.print(data.pitchRate, 1);
+  Serial.print(F("°/s  Roll: ")); Serial.print(data.roll, 1);
+  Serial.print(F("°  State: ")); Serial.print(stateToString(data.state));
+  Serial.print(F("  Opens: ")); Serial.println(data.openCount);
+}
+
+// ─────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────
+String stateToString(BarrierState s) {
+  switch (s) {
+    case STATE_CLOSED:  return "CLOSED";
+    case STATE_OPENING: return "OPENING";
+    case STATE_OPEN:    return "OPEN";
+    case STATE_CLOSING: return "CLOSING";
+    default:            return "UNKNOWN";
+  }
+}
+
+String stateToEmoji(BarrierState s) {
+  switch (s) {
+    case STATE_CLOSED:  return "BARRIER DOWN";
+    case STATE_OPENING: return "RISING...";
+    case STATE_OPEN:    return "BARRIER UP";
+    case STATE_CLOSING: return "LOWERING...";
+    default:            return "DETECTING...";
+  }
+}
