@@ -1,0 +1,106 @@
+[
+  {
+    "timestamp": "2026-05-10T16:11:41.012050",
+    "device_id": "SENSOR_01",
+    "latest_reading": {
+      "timestamp": "2024-01-15 09:45:00",
+      "temperature_C": 27.6,
+      "humidity_percent": 64.6,
+      "vibration_g": 0.03,
+      "voltage_V": 220.3,
+      "device_id": "SENSOR_01"
+    },
+    "alert": {
+      "alert_level": "NORMAL",
+      "alert_title": "All OK",
+      "alert_message": "All sensor readings are within acceptable ranges. Temperature, humidity, vibration, and voltage are all normal. No action is required at this time.",
+      "affected_sensors": [],
+      "recommended_action": "No action needed",
+      "urgency_minutes": "999"
+    }
+  },
+  {
+    "timestamp": "2026-05-10T16:12:02.675174",
+    "device_id": "SENSOR_01",
+    "latest_reading": {
+      "timestamp": "2024-01-15 09:45:00",
+      "temperature_C": 72.3,
+      "humidity_percent": 88.9,
+      "vibration_g": 2.85,
+      "voltage_V": 195.4,
+      "device_id": "SENSOR_01"
+    },
+    "alert": {
+      "alert_level": "CRITICAL",
+      "alert_title": "High Vibration",
+      "alert_message": "The vibration reading of 2.85g is significantly higher than the historical average of 0.31g, indicating potential equipment damage or instability. This abnormal reading may lead to mechanical failure if not addressed promptly. The high vibration could be caused by misalignment, imbalance, or worn-out parts.",
+      "affected_sensors": [
+        "vibration_g"
+      ],
+      "recommended_action": "Inspect and adjust equipment immediately",
+      "urgency_minutes": "5"
+    }
+  },
+  {
+    "timestamp": "2026-05-10T16:13:29.300090",
+    "device_id": "SENSOR_01",
+    "latest_reading": {
+      "timestamp": "2024-01-15 09:45:00",
+      "temperature_C": 72.3,
+      "humidity_percent": 88.9,
+      "vibration_g": 2.85,
+      "voltage_V": 195.4,
+      "device_id": "SENSOR_01"
+    },
+    "alert": {
+      "alert_level": "CRITICAL",
+      "alert_title": "High Vibration",
+      "alert_message": "The vibration reading of 2.85g is significantly higher than the historical average of 0.31g, indicating potential equipment damage or malfunction. This abnormal reading may lead to safety issues and requires immediate attention. The high vibration could be caused by a mechanical failure or loose parts.",
+      "affected_sensors": [
+        "vibration_g"
+      ],
+      "recommended_action": "Inspect and secure equipment immediately",
+      "urgency_minutes": "5"
+    }
+  },
+  {
+    "timestamp": "2026-05-10T16:15:21.115420",
+    "device_id": "SENSOR_01",
+    "latest_reading": {
+      "timestamp": "2024-01-15 09:45:00",
+      "temperature_C": 27.6,
+      "humidity_percent": 64.6,
+      "vibration_g": 0.03,
+      "voltage_V": 220.3,
+      "device_id": "SENSOR_01"
+    },
+    "alert": {
+      "alert_level": "NORMAL",
+      "alert_title": "All OK",
+      "alert_message": "All sensor readings are within acceptable ranges. Temperature, humidity, vibration, and voltage are all normal. No action is required.",
+      "affected_sensors": [],
+      "recommended_action": "No action needed",
+      "urgency_minutes": "999"
+    }
+  },
+  {
+    "timestamp": "2026-05-10T16:16:28.441530",
+    "device_id": "SENSOR_01",
+    "latest_reading": {
+      "timestamp": "2024-01-15 09:45:00",
+      "temperature_C": 27.6,
+      "humidity_percent": 64.6,
+      "vibration_g": 0.03,
+      "voltage_V": 220.3,
+      "device_id": "SENSOR_01"
+    },
+    "alert": {
+      "alert_level": "NORMAL",
+      "alert_title": "All OK",
+      "alert_message": "All sensor readings are within acceptable ranges. Temperature, humidity, vibration, and voltage are all normal. No action is required at this time.",
+      "affected_sensors": [],
+      "recommended_action": "No action needed",
+      "urgency_minutes": "999"
+    }
+  }
+]

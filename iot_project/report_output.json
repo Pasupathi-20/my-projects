@@ -1,0 +1,266 @@
+{
+  "generated_at": "2026-05-10T15:36:18.519572",
+  "total_readings": 20,
+  "stats": {
+    "temperature_C": {
+      "min": 24.5,
+      "max": 41.2,
+      "mean": 28.13,
+      "std_dev": 4.26,
+      "readings": 20
+    },
+    "humidity_percent": {
+      "min": 57.1,
+      "max": 67.0,
+      "mean": 64.0,
+      "std_dev": 2.67,
+      "readings": 20
+    },
+    "pressure_hPa": {
+      "min": 1012.4,
+      "max": 1013.3,
+      "mean": 1012.9,
+      "std_dev": 0.27,
+      "readings": 20
+    },
+    "vibration_g": {
+      "min": 0.02,
+      "max": 1.2,
+      "mean": 0.13,
+      "std_dev": 0.31,
+      "readings": 20
+    }
+  },
+  "anomalies": [
+    {
+      "row_index": 4,
+      "timestamp": "2024-01-15 08:20:00",
+      "sensor": "temperature_C",
+      "value": 38.9,
+      "expected_range": "19.61 \u2013 36.65",
+      "z_score": 2.53,
+      "severity": "MEDIUM"
+    },
+    {
+      "row_index": 4,
+      "timestamp": "2024-01-15 08:20:00",
+      "sensor": "humidity_percent",
+      "value": 58.2,
+      "expected_range": "58.66 \u2013 69.34",
+      "z_score": 2.17,
+      "severity": "MEDIUM"
+    },
+    {
+      "row_index": 4,
+      "timestamp": "2024-01-15 08:20:00",
+      "sensor": "vibration_g",
+      "value": 0.85,
+      "expected_range": "-0.49 \u2013 0.75",
+      "z_score": 2.32,
+      "severity": "MEDIUM"
+    },
+    {
+      "row_index": 5,
+      "timestamp": "2024-01-15 08:25:00",
+      "sensor": "temperature_C",
+      "value": 41.2,
+      "expected_range": "19.61 \u2013 36.65",
+      "z_score": 3.07,
+      "severity": "HIGH"
+    },
+    {
+      "row_index": 5,
+      "timestamp": "2024-01-15 08:25:00",
+      "sensor": "humidity_percent",
+      "value": 57.1,
+      "expected_range": "58.66 \u2013 69.34",
+      "z_score": 2.58,
+      "severity": "MEDIUM"
+    },
+    {
+      "row_index": 5,
+      "timestamp": "2024-01-15 08:25:00",
+      "sensor": "vibration_g",
+      "value": 1.2,
+      "expected_range": "-0.49 \u2013 0.75",
+      "z_score": 3.45,
+      "severity": "HIGH"
+    }
+  ],
+  "gpt_report": {
+    "summary": "The IoT sensor dataset shows a mix of normal and anomalous readings, with temperature, humidity, and vibration levels deviating from expected ranges at certain points. The average readings for temperature, humidity, and pressure are within reasonable limits, but vibration levels show significant variability. Overall, the data suggests some potential issues with equipment or environmental conditions that require attention.",
+    "health_status": "WARNING",
+    "health_reason": "The detection of medium to high severity anomalies in temperature, humidity, and vibration levels indicates potential problems with equipment operation or environmental conditions that could impact performance or safety.",
+    "anomaly_explanation": "The anomalies detected, particularly the high temperature reading of 41.2\u00b0C and high vibration level of 1.2g, could indicate issues such as equipment overheating, malfunctioning, or excessive wear and tear. The low humidity readings might suggest issues with the humidity control system or air leakage. These anomalies could lead to reduced equipment lifespan, decreased performance, or even safety hazards if not addressed.",
+    "recommendations": [
+      "Inspect equipment for signs of overheating or excessive wear and tear",
+      "Check the humidity control system for proper function and calibration",
+      "Perform vibration analysis to identify potential causes of high vibration levels",
+      "Review equipment maintenance schedules to ensure they are up-to-date and adequate",
+      "Consider implementing additional monitoring or alarm systems to detect anomalies in real-time"
+    ],
+    "insights": "The data shows a correlation between high temperature and high vibration levels, suggesting that equipment operation might be affected by temperature fluctuations. Additionally, the relatively stable pressure readings suggest that external environmental conditions are not a significant factor in the observed anomalies."
+  },
+  "raw_data": [
+    {
+      "timestamp": "2024-01-15 08:00:00",
+      "temperature_C": 24.5,
+      "humidity_percent": 62.1,
+      "pressure_hPa": 1013.2,
+      "vibration_g": 0.02,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:05:00",
+      "temperature_C": 24.8,
+      "humidity_percent": 61.9,
+      "pressure_hPa": 1013.1,
+      "vibration_g": 0.03,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:10:00",
+      "temperature_C": 25.1,
+      "humidity_percent": 62.3,
+      "pressure_hPa": 1013.0,
+      "vibration_g": 0.02,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:15:00",
+      "temperature_C": 25.4,
+      "humidity_percent": 63.0,
+      "pressure_hPa": 1012.9,
+      "vibration_g": 0.04,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:20:00",
+      "temperature_C": 38.9,
+      "humidity_percent": 58.2,
+      "pressure_hPa": 1012.7,
+      "vibration_g": 0.85,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:25:00",
+      "temperature_C": 41.2,
+      "humidity_percent": 57.1,
+      "pressure_hPa": 1012.5,
+      "vibration_g": 1.2,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:30:00",
+      "temperature_C": 26.0,
+      "humidity_percent": 63.5,
+      "pressure_hPa": 1012.8,
+      "vibration_g": 0.03,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:35:00",
+      "temperature_C": 26.2,
+      "humidity_percent": 64.0,
+      "pressure_hPa": 1013.0,
+      "vibration_g": 0.02,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:40:00",
+      "temperature_C": 26.5,
+      "humidity_percent": 64.2,
+      "pressure_hPa": 1013.1,
+      "vibration_g": 0.03,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:45:00",
+      "temperature_C": 26.8,
+      "humidity_percent": 64.5,
+      "pressure_hPa": 1013.2,
+      "vibration_g": 0.02,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:50:00",
+      "temperature_C": 27.0,
+      "humidity_percent": 65.0,
+      "pressure_hPa": 1013.3,
+      "vibration_g": 0.04,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 08:55:00",
+      "temperature_C": 27.1,
+      "humidity_percent": 65.1,
+      "pressure_hPa": 1013.2,
+      "vibration_g": 0.03,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 09:00:00",
+      "temperature_C": 27.3,
+      "humidity_percent": 65.3,
+      "pressure_hPa": 1013.1,
+      "vibration_g": 0.02,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 09:05:00",
+      "temperature_C": 27.5,
+      "humidity_percent": 65.5,
+      "pressure_hPa": 1013.0,
+      "vibration_g": 0.03,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 09:10:00",
+      "temperature_C": 27.6,
+      "humidity_percent": 65.8,
+      "pressure_hPa": 1012.9,
+      "vibration_g": 0.05,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 09:15:00",
+      "temperature_C": 27.8,
+      "humidity_percent": 66.0,
+      "pressure_hPa": 1012.8,
+      "vibration_g": 0.04,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 09:20:00",
+      "temperature_C": 28.0,
+      "humidity_percent": 66.2,
+      "pressure_hPa": 1012.7,
+      "vibration_g": 0.03,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 09:25:00",
+      "temperature_C": 28.1,
+      "humidity_percent": 66.5,
+      "pressure_hPa": 1012.6,
+      "vibration_g": 0.02,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 09:30:00",
+      "temperature_C": 28.3,
+      "humidity_percent": 66.8,
+      "pressure_hPa": 1012.5,
+      "vibration_g": 0.04,
+      "device_id": "SENSOR_01"
+    },
+    {
+      "timestamp": "2024-01-15 09:35:00",
+      "temperature_C": 28.5,
+      "humidity_percent": 67.0,
+      "pressure_hPa": 1012.4,
+      "vibration_g": 0.03,
+      "device_id": "SENSOR_01"
+    }
+  ]
+}

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IoT Sensor Explainer Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #7d8590;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --teal: #1abc9c;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+  header h1 span { color: var(--accent); }
+  #timestamp { font-size: 12px; color: var(--muted); }
+
+  /* ── Layout ── */
+  main { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+  section { margin-bottom: 32px; }
+  h2 {
+    font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--muted);
+    margin-bottom: 14px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Status banner ── */
+  #status-banner {
+    border-radius: 10px;
+    padding: 18px 22px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border: 1px solid;
+    margin-bottom: 28px;
+  }
+  #status-banner.NORMAL  { background: rgba(63,185,80,0.08); border-color: rgba(63,185,80,0.3); }
+  #status-banner.WARNING { background: rgba(210,153,34,0.08); border-color: rgba(210,153,34,0.3); }
+  #status-banner.CRITICAL{ background: rgba(248,81,73,0.08);  border-color: rgba(248,81,73,0.3); }
+  #status-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%; flex-shrink: 0;
+    animation: pulse 2s infinite;
+  }
+  .NORMAL  #status-dot { background: var(--green); }
+  .WARNING #status-dot { background: var(--yellow); }
+  .CRITICAL #status-dot { background: var(--red); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  #status-text strong { font-size: 15px; display: block; }
+  #status-text span   { color: var(--muted); font-size: 13px; }
+
+  /* ── Metric cards ── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); margin-bottom: 6px; }
+  .card .value { font-size: 24px; font-weight: 600; color: var(--text); }
+  .card .sub   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Charts ── */
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 680px) { .chart-grid { grid-template-columns: 1fr; } }
+  .chart-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .chart-box h3 { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .chart-box canvas { max-height: 180px; }
+
+  /* ── Anomaly list ── */
+  .anomaly-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 10px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 14px;
+    align-items: center;
+  }
+  .anomaly-item.HIGH   { border-left-color: var(--red); }
+  .anomaly-item.MEDIUM { border-left-color: var(--yellow); }
+  .badge {
+    font-size: 11px; font-weight: 600; padding: 3px 9px;
+    border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .badge.HIGH   { background: rgba(248,81,73,0.15); color: var(--red); }
+  .badge.MEDIUM { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .anomaly-main { font-size: 13px; }
+  .anomaly-main strong { color: var(--accent); }
+  .anomaly-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .z-score { font-size: 20px; font-weight: 700; color: var(--muted); text-align: right; }
+  .z-score span { font-size: 11px; display: block; font-weight: 400; }
+
+  /* ── GPT Report ── */
+  .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 680px) { .report-grid { grid-template-columns: 1fr; } }
+  .report-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .report-card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--muted); margin-bottom: 10px; }
+  .report-card p  { font-size: 13px; line-height: 1.65; color: var(--text); }
+  .report-card.full { grid-column: 1 / -1; }
+  .rec-list { list-style: none; }
+  .rec-list li {
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .rec-list li:last-child { border-bottom: none; }
+  .rec-list li::before {
+    content: "→";
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* ── Stats table ── */
+  .stats-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .stats-table th {
+    background: var(--surface2);
+    color: var(--muted); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.6px; padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .stats-table td {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .stats-table tr:last-child td { border-bottom: none; }
+  .stats-table tr:hover td { background: var(--surface2); }
+  .num { font-variant-numeric: tabular-nums; color: var(--accent); }
+
+  /* ── Loading / Error ── */
+  #loading, #error {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--muted);
+  }
+  #error { color: var(--red); }
+  code { background: var(--surface2); padding: 2px 8px; border-radius: 5px; font-size: 13px; }
+
+  /* ── No anomalies ── */
+  .no-anomalies {
+    background: rgba(63,185,80,0.06);
+    border: 1px solid rgba(63,185,80,0.2);
+    border-radius: 8px;
+    padding: 18px;
+    color: var(--green);
+    font-size: 13px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>IoT Sensor <span>Explainer</span></h1>
+  <span id="timestamp">—</span>
+</header>
+
+<main>
+  <div id="loading">⏳ Loading report_output.json…<br><small>Run iot_explainer.py first to generate data.</small></div>
+  <div id="error" style="display:none"></div>
+  <div id="app" style="display:none">
+
+    <!-- Status Banner -->
+    <div id="status-banner">
+      <div id="status-dot"></div>
+      <div id="status-text">
+        <strong id="status-label">—</strong>
+        <span id="status-reason">—</span>
+      </div>
+    </div>
+
+    <!-- Metric Summary -->
+    <section>
+      <h2>Overview</h2>
+      <div class="cards" id="metric-cards"></div>
+    </section>
+
+    <!-- Charts -->
+    <section>
+      <h2>Sensor Readings Over Time</h2>
+      <div class="chart-grid" id="chart-grid"></div>
+    </section>
+
+    <!-- Anomalies -->
+    <section>
+      <h2>Anomalies Detected</h2>
+      <div id="anomaly-list"></div>
+    </section>
+
+    <!-- GPT Report -->
+    <section>
+      <h2>AI Report — GPT Analysis</h2>
+      <div class="report-grid" id="report-grid"></div>
+    </section>
+
+    <!-- Stats Table -->
+    <section>
+      <h2>Full Statistics</h2>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <table class="stats-table" id="stats-table">
+          <thead>
+            <tr><th>Sensor</th><th>Min</th><th>Max</th><th>Mean</th><th>Std Dev</th><th>Readings</th></tr>
+          </thead>
+          <tbody id="stats-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script>
+const COLORS = ['#58a6ff','#3fb950','#d29922','#f85149','#1abc9c','#ab7df8'];
+
+async function loadData() {
+  try {
+    const res = await fetch('report_output.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}: file not found.`);
+    return await res.json();
+  } catch (e) {
+    throw e;
+  }
+}
+
+function renderStatus(report) {
+  const banner = document.getElementById('status-banner');
+  const status = report.health_status || 'NORMAL';
+  banner.className = status;
+  document.getElementById('status-dot').className = '';
+  document.getElementById('status-label').textContent = status;
+  document.getElementById('status-reason').textContent = report.health_reason || '';
+}
+
+function renderMetricCards(data) {
+  const container = document.getElementById('metric-cards');
+  const stats = data.stats;
+  const anomalyCount = data.anomalies.length;
+
+  const cards = [
+    { label: 'Total Readings', value: data.total_readings, sub: 'data points' },
+    { label: 'Anomalies Found', value: anomalyCount, sub: anomalyCount === 0 ? 'all clear' : 'need attention' },
+    { label: 'Sensors Monitored', value: Object.keys(stats).length, sub: 'channels' },
+  ];
+
+  // Add a card for each sensor's mean
+  for (const [col, s] of Object.entries(stats)) {
+    const name = col.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1');
+    cards.push({ label: name, value: s.mean, sub: `range ${s.min} – ${s.max}` });
+  }
+
+  container.innerHTML = cards.map(c => `
+    <div class="card">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+      <div class="sub">${c.sub}</div>
+    </div>
+  `).join('');
+}
+
+function renderCharts(data) {
+  const grid = document.getElementById('chart-grid');
+  const rawData = data.raw_data || [];
+  if (!rawData.length) { grid.innerHTML = '<p style="color:var(--muted)">No raw data for charts.</p>'; return; }
+
+  const labels = rawData.map(r => {
+    const ts = String(r.timestamp || '');
+    return ts.includes(' ') ? ts.split(' ')[1].slice(0,5) : ts;
+  });
+
+  const numericCols = Object.keys(data.stats);
+
+  numericCols.forEach((col, i) => {
+    const values = rawData.map(r => r[col]);
+    const color = COLORS[i % COLORS.length];
+    const name = col.replace(/_/g, ' ');
+
+    const boxEl = document.createElement('div');
+    boxEl.className = 'chart-box';
+    boxEl.innerHTML = `<h3>${name}</h3><canvas id="chart-${i}"></canvas>`;
+    grid.appendChild(boxEl);
+
+    new Chart(document.getElementById(`chart-${i}`), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          borderColor: color,
+          backgroundColor: color + '18',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          fill: true,
+          tension: 0.3,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#7d8590', font: { size: 10 } }, grid: { color: '#21262d' } },
+          y: { ticks: { color: '#7d8590', font: { size: 10 } }, grid: { color: '#21262d' } }
+        }
+      }
+    });
+  });
+}
+
+function renderAnomalies(anomalies) {
+  const container = document.getElementById('anomaly-list');
+  if (!anomalies.length) {
+    container.innerHTML = '<div class="no-anomalies">✓ No anomalies detected — all sensor readings within normal range.</div>';
+    return;
+  }
+  container.innerHTML = anomalies.map(a => `
+    <div class="anomaly-item ${a.severity}">
+      <span class="badge ${a.severity}">${a.severity}</span>
+      <div>
+        <div class="anomaly-main">
+          <strong>${a.sensor.replace(/_/g, ' ')}</strong> = ${a.value} at ${a.timestamp}
+        </div>
+        <div class="anomaly-meta">Expected: ${a.expected_range}</div>
+      </div>
+      <div class="z-score">${a.z_score}σ<span>z-score</span></div>
+    </div>
+  `).join('');
+}
+
+function renderReport(report) {
+  const grid = document.getElementById('report-grid');
+  const recs = (report.recommendations || []).map(r => `<li>${r}</li>`).join('');
+  grid.innerHTML = `
+    <div class="report-card">
+      <h3>Summary</h3>
+      <p>${report.summary || '—'}</p>
+    </div>
+    <div class="report-card">
+      <h3>Insights</h3>
+      <p>${report.insights || '—'}</p>
+    </div>
+    <div class="report-card">
+      <h3>Anomaly Explanation</h3>
+      <p>${report.anomaly_explanation || '—'}</p>
+    </div>
+    <div class="report-card">
+      <h3>Recommendations</h3>
+      <ul class="rec-list">${recs}</ul>
+    </div>
+  `;
+}
+
+function renderStatsTable(stats) {
+  const body = document.getElementById('stats-body');
+  body.innerHTML = Object.entries(stats).map(([col, s]) => `
+    <tr>
+      <td>${col.replace(/_/g, ' ')}</td>
+      <td class="num">${s.min}</td>
+      <td class="num">${s.max}</td>
+      <td class="num">${s.mean}</td>
+      <td class="num">${s.std_dev}</td>
+      <td class="num">${s.readings}</td>
+    </tr>
+  `).join('');
+}
+
+async function init() {
+  try {
+    const data = await loadData();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+
+    const ts = new Date(data.generated_at);
+    document.getElementById('timestamp').textContent = 'Generated: ' + ts.toLocaleString();
+
+    renderStatus(data.gpt_report);
+    renderMetricCards(data);
+    renderCharts(data);
+    renderAnomalies(data.anomalies);
+    renderReport(data.gpt_report);
+    renderStatsTable(data.stats);
+
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display = 'block';
+    document.getElementById('error').innerHTML = `
+      <strong>Could not load report_output.json</strong><br><br>
+      Run the Python script first:<br>
+      <code>python iot_explainer.py</code><br><br>
+      Then open this file in a browser alongside <code>report_output.json</code> in the same folder.<br>
+      <small style="color:var(--muted)">(Error: ${e.message})</small>
+    `;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
